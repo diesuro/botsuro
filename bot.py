@@ -3,10 +3,12 @@ import requests
 import discord
 from discord import app_commands
 from discord.ext import commands
+from aiohttp import web
 
 API_BASE_URL = os.environ.get("API_BASE_URL", "https://bloxsuro-server.onrender.com").rstrip("/")
 ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "")
 DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "")
+PORT = int(os.environ.get("PORT", "10000"))
 
 ALLOWED_USERS = {
     964974537156472884,
@@ -92,8 +94,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    synced = await bot.tree.sync()
-    print(f"BLOXSURO bot online as {bot.user}. Synced {len(synced)} commands.")
+    try:
+        synced = await bot.tree.sync()
+        print(f"BLOXSURO bot online as {bot.user}. Synced {len(synced)} commands.", flush=True)
+    except Exception as exc:
+        print(f"Command sync failed: {exc}", flush=True)
 
 
 @bot.tree.command(name="keygen", description="Generate a BLOXSURO license key.")
@@ -140,7 +145,6 @@ async def link(interaction: discord.Interaction, key: str, user: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/link-owner", {"key": key, "owner": user})
@@ -148,10 +152,7 @@ async def link(interaction: discord.Interaction, key: str, user: str):
         await interaction.followup.send(block("BLOXSURO ERROR", [data.get("error", "Unknown error")]), ephemeral=True)
         return
 
-    await interaction.followup.send(
-        block("BLOXSURO KEY LINKED", ["KEY", f"`{key}`", "", "OWNER", user]),
-        ephemeral=True,
-    )
+    await interaction.followup.send(block("BLOXSURO KEY LINKED", ["KEY", f"`{key}`", "", "OWNER", user]), ephemeral=True)
 
 
 @bot.tree.command(name="search", description="Search keys linked to a user/name.")
@@ -160,7 +161,6 @@ async def search(interaction: discord.Interaction, user: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/search-owner", {"owner": user})
@@ -170,10 +170,7 @@ async def search(interaction: discord.Interaction, user: str):
 
     keys = data.get("keys", [])
     if not keys:
-        await interaction.followup.send(
-            block("BLOXSURO SEARCH", ["USER", user, "", "RESULT", "No keys found."]),
-            ephemeral=True,
-        )
+        await interaction.followup.send(block("BLOXSURO SEARCH", ["USER", user, "", "RESULT", "No keys found."]), ephemeral=True)
         return
 
     lines = ["USER", user, "", "RESULTS"]
@@ -199,7 +196,6 @@ async def keyinfo(interaction: discord.Interaction, key: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/key-info", {"key": key})
@@ -216,7 +212,6 @@ async def timeleft(interaction: discord.Interaction, key: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/key-info", {"key": key})
@@ -251,7 +246,6 @@ async def reset_hwid(interaction: discord.Interaction, key: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/action", {"action": "reset_hwid", "keys": [key]})
@@ -259,10 +253,7 @@ async def reset_hwid(interaction: discord.Interaction, key: str):
         await interaction.followup.send(block("BLOXSURO ERROR", [data.get("error", "Unknown error")]), ephemeral=True)
         return
 
-    await interaction.followup.send(
-        block("BLOXSURO HWID RESET", ["KEY", f"`{key}`", "", "RESULT", "HWID reset completed."]),
-        ephemeral=True,
-    )
+    await interaction.followup.send(block("BLOXSURO HWID RESET", ["KEY", f"`{key}`", "", "RESULT", "HWID reset completed."]), ephemeral=True)
 
 
 @bot.tree.command(name="disable", description="Disable a key.")
@@ -271,7 +262,6 @@ async def disable(interaction: discord.Interaction, key: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/action", {"action": "disable", "keys": [key]})
@@ -279,10 +269,7 @@ async def disable(interaction: discord.Interaction, key: str):
         await interaction.followup.send(block("BLOXSURO ERROR", [data.get("error", "Unknown error")]), ephemeral=True)
         return
 
-    await interaction.followup.send(
-        block("BLOXSURO KEY DISABLED", ["KEY", f"`{key}`", "", "RESULT", "Key disabled."]),
-        ephemeral=True,
-    )
+    await interaction.followup.send(block("BLOXSURO KEY DISABLED", ["KEY", f"`{key}`", "", "RESULT", "Key disabled."]), ephemeral=True)
 
 
 @bot.tree.command(name="enable", description="Re-enable a disabled key.")
@@ -291,7 +278,6 @@ async def enable(interaction: discord.Interaction, key: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/action", {"action": "enable", "keys": [key]})
@@ -299,10 +285,7 @@ async def enable(interaction: discord.Interaction, key: str):
         await interaction.followup.send(block("BLOXSURO ERROR", [data.get("error", "Unknown error")]), ephemeral=True)
         return
 
-    await interaction.followup.send(
-        block("BLOXSURO KEY ENABLED", ["KEY", f"`{key}`", "", "RESULT", "Key enabled."]),
-        ephemeral=True,
-    )
+    await interaction.followup.send(block("BLOXSURO KEY ENABLED", ["KEY", f"`{key}`", "", "RESULT", "Key enabled."]), ephemeral=True)
 
 
 @bot.tree.command(name="delete", description="Delete a key permanently.")
@@ -311,7 +294,6 @@ async def delete(interaction: discord.Interaction, key: str):
     if not allowed(interaction):
         await no_access(interaction)
         return
-
     await interaction.response.defer(ephemeral=True)
 
     data = api_post("/admin/action", {"action": "delete", "keys": [key]})
@@ -319,13 +301,30 @@ async def delete(interaction: discord.Interaction, key: str):
         await interaction.followup.send(block("BLOXSURO ERROR", [data.get("error", "Unknown error")]), ephemeral=True)
         return
 
-    await interaction.followup.send(
-        block("BLOXSURO KEY DELETED", ["KEY", f"`{key}`", "", "RESULT", "Key permanently deleted."]),
-        ephemeral=True,
-    )
+    await interaction.followup.send(block("BLOXSURO KEY DELETED", ["KEY", f"`{key}`", "", "RESULT", "Key permanently deleted."]), ephemeral=True)
 
 
-if not DISCORD_BOT_TOKEN:
-    raise RuntimeError("DISCORD_BOT_TOKEN is not configured.")
+async def health(request):
+    return web.json_response({"online": True, "service": "BLOXSURO Discord Bot"})
 
-bot.run(DISCORD_BOT_TOKEN)
+
+async def start_health_server():
+    app = web.Application()
+    app.router.add_get("/", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+    print(f"Health server running on port {PORT}", flush=True)
+
+
+async def main():
+    if not DISCORD_BOT_TOKEN:
+        raise RuntimeError("DISCORD_BOT_TOKEN is not configured.")
+    await start_health_server()
+    await bot.start(DISCORD_BOT_TOKEN)
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
